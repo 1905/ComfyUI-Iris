@@ -7,8 +7,8 @@ no latent space, so every pixel comes from the model.
 <p align="center"><img src="example_workflows/iris-3b_text_to_image.jpg" width="420"></p>
 
 - **No requirements.** The pack is pure ComfyUI and installs nothing.
-- **No custom nodes.** It teaches ComfyUI's model loader to recognise Iris, so the standard
-  Load Diffusion Model → KSampler graph runs it.
+- **No custom model nodes.** It teaches ComfyUI's model loader to recognise Iris, so the standard
+  Load Diffusion Model → KSampler graph runs it. The only node is the `IrisReady` ready check.
 - **Works with ComfyUI features.** It uses the same building blocks as built-in models, so
   offloading, fp8, int8, and attention backends and options apply as usual.
 
@@ -73,6 +73,30 @@ text-to-image graph:
 - **Exact reference sampler:** the official samples use 100 steps of DPM-Solver++(2M) at CFG 3.
   To reproduce that, use **SamplerCustom** + **SamplerDPMPP_2M_SDE** (`eta 0`, `midpoint`) +
   **BasicScheduler** (`simple`, 100 steps). Plain `dpmpp_2m` is a different formula for flow models.
+
+## Iris-3B Turbo (4 steps)
+
+The official Turbo checkpoint (`turbo/model.safetensors` on
+[speridlabs/iris-3b](https://huggingface.co/speridlabs/iris-3b), bf16, same keys as the base model) loads with
+Load Diffusion Model too. Its few-step sampler is plain Euler on fixed sigmas with no CFG, so use the custom
+sampler nodes instead of KSampler (a KSampler scheduler would change the sigmas):
+
+| Node | Setting |
+|---|---|
+| Load Diffusion Model | the Turbo file, weight dtype `default` |
+| Load CLIP | `qwen3vl_4b_fp8_scaled.safetensors` or `_bf16`, type **`krea2`** |
+| BasicGuider | the positive prompt only (CFG is distilled into the weights) |
+| KSamplerSelect | `euler` |
+| ManualSigmas | `1, 0.938, 0.833, 0.625, 0` |
+| RandomNoise → SamplerCustomAdvanced | |
+| EmptyChromaRadianceLatentImage | a trained bucket: 1024×1024, 896×1344, 752×1344, 896×1200 or a transpose |
+| Load VAE → VAE Decode | `pixel_space` |
+
+Checked on ComfyUI v0.43.0: `tests/parity.py` with the Turbo weights gives 3.3e-5 relative error; with
+the same noise, the graph above matches the reference `generate_few_step` at 29-35 dB PSNR (bf16 text encoder).
+
+**IrisReady** is a ready-check node: it is listed in `/object_info` only when the pack imported and
+registered Iris, so a host can detect a failed import before the first render.
 
 ## Editing (experimental)
 
