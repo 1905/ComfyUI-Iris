@@ -196,3 +196,9 @@ def register():
         if not any(getattr(m, "unet_config", {}).get("image_model") == name for m in comfy.supported_models.models):
             comfy.supported_models.models.append(config)
     logging.info("Iris-3B: registered with Load Diffusion Model")
+
+
+def registered():
+    """True when the detection hook is installed and both model configs are listed."""
+    names = {getattr(m, "unet_config", {}).get("image_model") for m in comfy.supported_models.models}
+    return getattr(comfy.model_detection.detect_unet_config, "_iris", False) and {"iris", "iris_depth"} <= names
